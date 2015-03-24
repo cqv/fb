@@ -147,6 +147,8 @@ publish/
 csx/
 *.build.csdef
 
+# configs
+App.config
 # Windows Store app package directory
 AppPackages/
 
