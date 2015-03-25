@@ -26,7 +26,8 @@ namespace PFF
 
             //Console.WriteLine("Downloading Rodgers W1 Passing Page");
             //string url = @"https://www.profootballfocus.com/data/by_week.php?tab=by_week";
-            string localPath = @"C:\Users\Ian\Documents\PFF\by_week.html";
+            string pffDataDirectory = ConfigurationManager.AppSettings["pffDataDirectory"];
+            string localPath = pffDataDirectory + @"\by_week.html";
             //client.DownloadFile(url, localPath);
             
 
@@ -56,6 +57,12 @@ namespace PFF
             weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[8]/div/ul/li"));
             
             
+            // Get games
+
+
+
+
+
             // close
 
             Console.WriteLine("\nPress enter to exit");
