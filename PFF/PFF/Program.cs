@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using MyScraper;
 using System.Collections.Specialized;
 using System.Configuration;
+using HtmlAgilityPack;
 
 namespace PFF
 {
@@ -14,35 +15,74 @@ namespace PFF
     {
         static void Main(string[] args)
         {
-            // login
+            //// login
 
-            Console.WriteLine("Logging in...");
-            var client = new CookieAwareWebClient();
-            client.BaseAddress = @"https://www.profootballfocus.com/amember/";
-            var loginData = new NameValueCollection();
+            //Console.WriteLine("Logging in...");
+            //var client = new CookieAwareWebClient();
+            //login(client);
             
-            loginData.Add("amember_login", ConfigurationManager.AppSettings["user"]);
-            loginData.Add("amember_pass", ConfigurationManager.AppSettings["pass"]);
-            client.UploadValues("member", "POST", loginData);
             
+            //// download page
 
-            // download page
-
-            Console.WriteLine("Downloading Rodgers W1 Passing Page");
-            string url = @"https://www.profootballfocus.com/data/gstats.php?tab=by_week&season=2014&gameid=3217&teamid=1&stats=p&playerid=";
-            string localPath = @"C:\Users\Ian\Documents\PFF\STL@ARI - QB.html";
-            client.DownloadFile(url, localPath);
+            //Console.WriteLine("Downloading Rodgers W1 Passing Page");
+            //string url = @"https://www.profootballfocus.com/data/by_week.php?tab=by_week";
+            string localPath = @"C:\Users\Ian\Documents\PFF\by_week.html";
+            //client.DownloadFile(url, localPath);
             
 
-            // Count dropdown
+            // Get seasons
 
+            HtmlDocument doc = new HtmlDocument();
+            doc.Load(localPath);
+            string xpath = @"//select[@id='selSeason']/option";
+            HtmlNode docNode = doc.DocumentNode;
+            //string xpath = @"/html/body/div/form/div[1]/table/tbody/tr[2]/td/table/tbody/tr[2]/td[2]/div/select/option[1]";
+            HtmlNodeCollection seasonNodes = docNode.SelectNodes(xpath);
+            List<int> seasons = new List<int>();
+            foreach (HtmlNode n in seasonNodes)
+            {
+                int i = Int32.Parse(n.Attributes["value"].Value);
+                Console.WriteLine(i);
+                seasons.Add(i);
+            }
+            
 
+            // Get weeks
 
+            
+            List<string> weeks = new List<string>();
+            weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[4]/div/ul/li"));
+            weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[6]/div/ul/li"));
+            weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[8]/div/ul/li"));
+            
             
             // close
 
             Console.WriteLine("\nPress enter to exit");
             Console.Read();
+        }
+
+        private static List<string> getWeeks(HtmlDocument doc, string path)
+        {
+            List<string> weeks = new List<string>();
+            foreach(HtmlNode n in doc.DocumentNode.SelectNodes(path)) 
+            {
+                string s = n.SelectSingleNode("a/span").InnerText;
+                Console.WriteLine(s);
+                weeks.Add(s);
+            }
+            return weeks;
+        }
+
+        private static void login(CookieAwareWebClient client)
+        {
+            client.BaseAddress = @"https://www.profootballfocus.com/amember/";
+            
+            var loginData = new NameValueCollection();
+            loginData.Add("amember_login", ConfigurationManager.AppSettings["user"]);
+            loginData.Add("amember_pass", ConfigurationManager.AppSettings["pass"]);
+            
+            client.UploadValues("member", "POST", loginData);            
         }
     }
 }
