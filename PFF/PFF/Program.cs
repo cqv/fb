@@ -19,14 +19,43 @@ namespace PFF
             // vars
 
             string pffDataDirectory = ConfigurationManager.AppSettings["pffDataDirectory"];
-            string localPath = pffDataDirectory + @"\2014_03.html";
             
 
-            //// login
+            // login
 
-            //Console.WriteLine("Logging in...");
-            //var client = new CookieAwareWebClient();
-            //login(client);
+            Console.WriteLine("Logging in...");
+            var client = new CookieAwareWebClient();
+            login(client);
+
+
+            // get home page
+
+            Console.WriteLine("Downloading By Week...");
+            string url = @"https://www.profootballfocus.com/data/by_week.php?tab=by_week";
+            string localPath = pffDataDirectory + @"\by_week.html";
+            client.DownloadFile(url, localPath);
+
+
+            // Get seasons
+
+            HtmlDocument doc = new HtmlDocument();
+            doc.Load(localPath);
+            HtmlNodeCollection seasonNodes = doc.DocumentNode.SelectNodes("//select[@id='selSeason']/option");
+            List<int> seasons = new List<int>();
+            foreach (HtmlNode n in seasonNodes)
+            {
+                int i = Int32.Parse(n.Attributes["value"].Value);
+                //Console.WriteLine(i);
+                seasons.Add(i);
+            }
+
+
+            // Download games from season
+
+            foreach(int season in seasons)
+            {
+                downloadGamesFromSeason(season, client);
+            }
 
 
             //// download page
@@ -36,44 +65,29 @@ namespace PFF
             //client.DownloadFile(url, localPath);
             
 
-            // Get seasons
-
-            HtmlDocument doc = new HtmlDocument();
-            doc.Load(localPath);
-            string xpath = @"//select[@id='selSeason']/option";
-            HtmlNode docNode = doc.DocumentNode;
-            //string xpath = @"/html/body/div/form/div[1]/table/tbody/tr[2]/td/table/tbody/tr[2]/td[2]/div/select/option[1]";
-            HtmlNodeCollection seasonNodes = docNode.SelectNodes(xpath);
-            List<int> seasons = new List<int>();
-            foreach (HtmlNode n in seasonNodes)
-            {
-                int i = Int32.Parse(n.Attributes["value"].Value);
-                Console.WriteLine(i);
-                seasons.Add(i);
-            }
-            
-
-            // Get weeks
-
-            
-            List<string> weeks = new List<string>();
-            weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[4]/div/ul/li"));
-            weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[6]/div/ul/li"));
-            weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[8]/div/ul/li"));
             
             
-            // Get games
 
-            Console.WriteLine("Parsing games...");
-            HtmlNodeCollection gameNodes = doc.DocumentNode.SelectNodes(@"//*[@id='games']/table[1]/tr/td");
-            List<Game> games = new List<Game>();
-            foreach (HtmlNode gameNode in gameNodes)
-            {
-                games.Add(parseGame(gameNode));
-            }
+            //// Get weeks
+
+            //List<string> weeks = new List<string>();
+            //weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[4]/div/ul/li"));
+            //weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[6]/div/ul/li"));
+            //weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[8]/div/ul/li"));
+            
+            
+            //// Get games
+
+            //Console.WriteLine("Parsing games...");
+            //HtmlNodeCollection gameNodes = doc.DocumentNode.SelectNodes(@"//*[@id='games']/table[1]/tr/td");
+            //List<Game> games = new List<Game>();
+            //foreach (HtmlNode gameNode in gameNodes)
+            //{
+            //    games.Add(parseGame(gameNode));
+            //}
             
 
-            Console.WriteLine("Created game objects");
+            //Console.WriteLine("Created game objects");
             
             
 
@@ -81,6 +95,57 @@ namespace PFF
 
             Console.WriteLine("\nPress enter to exit");
             Console.Read();
+        }
+
+        private static void downloadGamesFromSeason(int season, CookieAwareWebClient client)
+        {
+            // get season home page
+
+            Console.WriteLine("Downloading " + season + "...");
+            string url = @"https://www.profootballfocus.com/data/by_week.php?tab=by_week&season=" + season;
+            string localPath = ConfigurationManager.AppSettings["pffDataDirectory"] + @"\" + season + ".html";
+            client.DownloadFile(url, localPath);
+
+
+            // set up doc
+
+            HtmlDocument doc = new HtmlDocument();
+            doc.Load(localPath);
+
+
+            // get weeks
+
+            List<string> weeks = new List<string>();
+            //List<string> newWeeks = getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[4]/div/ul/li");
+            //weeks.AddRange(newWeeks);
+            weeks.AddRange(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[4]/div/ul/li"));
+            weeks.AddRange(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[6]/div/ul/li"));
+            weeks.AddRange(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[8]/div/ul/li"));
+
+
+            // download weeks
+
+            foreach(string week in weeks) 
+            {
+                downloadGamesFromWeek(season, week, client);
+            }
+
+
+
+        }
+
+        private static void downloadGamesFromWeek(int season, string week, CookieAwareWebClient client)
+        {
+            // get week home page
+
+            Console.WriteLine("Downloading " + season + " week " + week + "...");
+            string url = @"https://www.profootballfocus.com/data/by_week.php?tab=by_week&season=" + season + "&wk=" + week + "&teamid=-1&gameid=&stats=";
+            string localPath = ConfigurationManager.AppSettings["pffDataDirectory"] + @"\" + season + "_" + week + ".html";
+            client.DownloadFile(url, localPath);
+
+
+
+
         }
 
         private static Game parseGame(HtmlNode gameNode)
@@ -106,7 +171,8 @@ namespace PFF
             foreach(HtmlNode n in doc.DocumentNode.SelectNodes(path)) 
             {
                 string s = n.SelectSingleNode("a/span").InnerText;
-                Console.WriteLine(s);
+                s = s.TrimStart(new Char[] { '0' });
+                //Console.WriteLine(s);
                 weeks.Add(s);
             }
             return weeks;
