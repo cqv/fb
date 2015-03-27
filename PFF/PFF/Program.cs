@@ -9,6 +9,8 @@ using System.Collections.Specialized;
 using System.Configuration;
 using HtmlAgilityPack;
 using System.Web;
+using System.Data;
+using System.Data.SqlClient;
 
 namespace PFF
 {
@@ -23,9 +25,9 @@ namespace PFF
 
             // login
 
-            Console.WriteLine("Logging in...");
+            //Console.WriteLine("Logging in...");
             var client = new CookieAwareWebClient();
-            login(client);
+            //login(client);
 
 
             // get home page
@@ -33,7 +35,7 @@ namespace PFF
             Console.WriteLine("Downloading By Week...");
             string url = @"https://www.profootballfocus.com/data/by_week.php?tab=by_week";
             string localPath = pffDataDirectory + @"\by_week.html";
-            client.DownloadFile(url, localPath);
+            //client.DownloadFile(url, localPath);
 
 
             // Get seasons
@@ -76,15 +78,7 @@ namespace PFF
             //weeks.Concat(getWeeks(doc, @"//div[@id='header']/table/tr[2]/td/table/tr[2]/td[8]/div/ul/li"));
             
             
-            //// Get games
-
-            //Console.WriteLine("Parsing games...");
-            //HtmlNodeCollection gameNodes = doc.DocumentNode.SelectNodes(@"//*[@id='games']/table[1]/tr/td");
-            //List<Game> games = new List<Game>();
-            //foreach (HtmlNode gameNode in gameNodes)
-            //{
-            //    games.Add(parseGame(gameNode));
-            //}
+            
             
 
             //Console.WriteLine("Created game objects");
@@ -104,7 +98,7 @@ namespace PFF
             Console.WriteLine("Downloading " + season + "...");
             string url = @"https://www.profootballfocus.com/data/by_week.php?tab=by_week&season=" + season;
             string localPath = ConfigurationManager.AppSettings["pffDataDirectory"] + @"\" + season + ".html";
-            client.DownloadFile(url, localPath);
+            //client.DownloadFile(url, localPath);
 
 
             // set up doc
@@ -141,17 +135,53 @@ namespace PFF
             Console.WriteLine("Downloading " + season + " week " + week + "...");
             string url = @"https://www.profootballfocus.com/data/by_week.php?tab=by_week&season=" + season + "&wk=" + week + "&teamid=-1&gameid=&stats=";
             string localPath = ConfigurationManager.AppSettings["pffDataDirectory"] + @"\" + season + "_" + week + ".html";
-            client.DownloadFile(url, localPath);
+            //client.DownloadFile(url, localPath);
+
+            
+            // Get games
+
+            HtmlDocument doc = new HtmlDocument();
+            doc.Load(localPath);
+            HtmlNodeCollection gameNodes = doc.DocumentNode.SelectNodes(@"//*[@id='games']/table[1]/tr/td");
+            List<Game> games = new List<Game>();
+            if (gameNodes != null)
+            {
+                foreach (HtmlNode gameNode in gameNodes)
+                {
+                    games.Add(parseGame(gameNode, week));
+                }
+            }
+            else
+                Console.WriteLine("ERROR: NO GAMES IN FILE!!!");
+
+            
 
 
+            // insert games
 
+            DataTable gamesTable = Game.ToDataTable(games);
+            using (SqlConnection dbConnection = new SqlConnection(ConfigurationManager.ConnectionStrings["pffDb"].ConnectionString))
+            {
+                dbConnection.Open();
+                using (SqlBulkCopy s = new SqlBulkCopy(dbConnection))
+                {
+                    s.DestinationTableName = "load_game";
+
+                    foreach (var column in gamesTable.Columns)
+                        s.ColumnMappings.Add(column.ToString(), column.ToString());
+
+                    s.WriteToServer(gamesTable);
+                }
+            }
 
         }
 
-        private static Game parseGame(HtmlNode gameNode)
+        
+
+        private static Game parseGame(HtmlNode gameNode, string week)
         {
-            string weekString = gameNode.SelectSingleNode("div/table/tr[2]/td/table/tr/th[1]").InnerText;
-            int week = Int32.Parse(weekString.Substring("Week ".Length));
+            //string weekString = gameNode.SelectSingleNode("div/table/tr[2]/td/table/tr/th[1]").InnerText;
+            //int week = Int32.Parse(weekString.Substring("Week ".Length));
             HtmlNode gameRowNode = gameNode.SelectSingleNode("div/table/tr[5]/td/table/tr");
             int awayScore = Int32.Parse(gameRowNode.SelectSingleNode("td[1]").InnerText);
             string awayTeamLink = gameRowNode.SelectSingleNode("td[2]/a").Attributes["href"].Value;
@@ -181,7 +211,7 @@ namespace PFF
         private static void login(CookieAwareWebClient client)
         {
             client.BaseAddress = @"https://www.profootballfocus.com/amember/";
-            
+            client.Headers.Add("user-agent", @"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.101 Safari/537.36");            
             var loginData = new NameValueCollection();
             loginData.Add("amember_login", ConfigurationManager.AppSettings["pffUser"]);
             loginData.Add("amember_pass", ConfigurationManager.AppSettings["pffPass"]);

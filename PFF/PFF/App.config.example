@@ -8,4 +8,7 @@
     <add key="pffPass" value="myPassword"/>
     <add key="pffDataDirectory" value="myDirectoryPath" />
   </appSettings>
+  <connectionStrings>
+    <add connectionString="myDbConnectionString" name="pffDb"/>
+  </connectionStrings>
 </configuration>
